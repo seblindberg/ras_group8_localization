@@ -1,11 +1,11 @@
-#include <ras_group8_template/Template.hpp>
+#include <ras_group8_localization/Localization.hpp>
 
 // STD
 #include <string>
 
-namespace ras_group8_template {
+namespace ras_group8_localization {
 
-Template::Template(ros::NodeHandle& node_handle)
+Localization::Localization(ros::NodeHandle& node_handle)
     : node_handle_(node_handle)
 {
   if (!readParameters()) {
@@ -14,23 +14,23 @@ Template::Template(ros::NodeHandle& node_handle)
   }
   
   subscriber_ = node_handle_.subscribe(subscriber_topic_, 1,
-                                      &Template::topicCallback, this);
+                                      &Localization::topicCallback, this);
 
   ROS_INFO("Successfully launched node.");
 }
 
-Template::~Template()
+Localization::~Localization()
 {
 }
 
-bool Template::readParameters()
+bool Localization::readParameters()
 {
   if (!node_handle_.getParam("subscriber_topic", subscriber_topic_))
     return false;
   return true;
 }
 
-void Template::topicCallback(const phidgets::motor_encoder& msg)
+void Localization::topicCallback(const phidgets::motor_encoder& msg)
 {
 }
 

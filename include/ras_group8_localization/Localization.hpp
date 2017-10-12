@@ -3,13 +3,13 @@
 #include <ros/ros.h>
 #include <phidgets/motor_encoder.h>
 
-namespace ras_group8_template {
+namespace ras_group8_localization {
 
-class Template
+class Localization
 {
 public:
-  Template(ros::NodeHandle& node_handle);
-  virtual ~Template();
+  Localization(ros::NodeHandle& node_handle);
+  virtual ~Localization();
 
 private:
   bool readParameters();

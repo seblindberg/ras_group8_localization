@@ -1,8 +1,0 @@
-<launch>
-
-  <!-- Launch RAS Group 8 Template Node -->
-  <node pkg="ras_group8_template" type="ras_group8_template" name="ras_group8_template" output="screen">
-    <rosparam command="load" file="$(find ras_group8_template)/config/default.yaml" />
-  </node>
-
-</launch>

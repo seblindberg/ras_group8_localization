@@ -1,12 +1,12 @@
 <package>
- <name>ras_group8_template</name>
+ <name>ras_group8_localization</name>
   <version>0.1.0</version>
   <description>
-    Template package.
+    Localization package.
   </description>
   <license>BSD</license>
 
-  <url type="website">https://github.com/RAS17-Group-8/ras_group8_template</url>
+  <url type="website">https://github.com/RAS17-Group-8/ras_group8_localization</url>
 
   <maintainer email="seb.lindberg@gmail.com">Sebastian Lindberg</maintainer>
 
