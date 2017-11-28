@@ -1,0 +1,19 @@
+<launch>
+
+  <!--<remap from="test_localization/map" to="ras_group8_localization/map"  />-->
+  <!--<remap from="test_localization/odom" to="ras_group8_localization/odom" />-->
+
+  <!-- Launch RAS Group 8 Localization Node -->
+  <node pkg="ras_group8_localization"
+        type="ras_group8_localization"
+        name="ras_group8_localization"
+        output="screen">
+    <rosparam command="load" file="$(find ras_group8_localization)/config/default.yaml" />
+    <param name="map_topic" value="/test_localization/map" />
+    <param name="odom_topic" value="/test_localization/odom" />
+  </node>
+
+  <test test-name="test_localization"
+        pkg="ras_group8_localization"
+        type="ras_group8_localization_tests" />
+</launch>

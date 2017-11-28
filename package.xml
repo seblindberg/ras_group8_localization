@@ -13,8 +13,19 @@
   <buildtool_depend>catkin</buildtool_depend>
 
   <build_depend>roscpp</build_depend>
-  <build_depend>phidgets</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>tf</build_depend>
+  <build_depend>ras_group8_map</build_depend>
 
   <run_depend>roscpp</run_depend>
-  <run_depend>phidgets</run_depend>
+  <run_depend>nav_msgs</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <run_depend>tf</run_depend>
+  <run_depend>ras_group8_map</run_depend>
+  
+  <test_depend>rostest</test_depend>
+  <test_depend>ras_group8_util</test_depend>
 </package>
