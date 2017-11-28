@@ -48,7 +48,7 @@ Localization::Localization(ros::NodeHandle& node_handle,
                            &Localization::laserCallback, this);
   
   /* Prepare the pose message */
-  // pose_msg_.header.frame_id = "";
+  pose_msg_.header.frame_id = "map";
   pose_msg_.header.seq = 0;
                                             
 #if RAS_GROUP8_LOCALIZATION_PUBLISH_STATE
@@ -97,7 +97,6 @@ Localization::mapCallback(const nav_msgs::OccupancyGrid& map)
     
   /* Assume the same reference frame as the map */
   pose_msg_.header.frame_id = map.header.frame_id;
-  
   particles_msg_.header.frame_id = map.header.frame_id;
   
   map_initialized_ = true;
@@ -123,8 +122,11 @@ Localization::odometryCallback(const nav_msgs::Odometry& odometry)
     const double v = odometry.twist.twist.linear.x;
     const double w = odometry.twist.twist.angular.z;
     
-    /* Move the particles as suggested by the odometry */
-    pf_.move(v, w, dt);
+    /* Only move particles when we are actually moving */
+    if (v > 0 || w > 0) {
+      /* Move the particles as suggested by the odometry */
+      pf_.move(v, w, dt);
+    }
   }
   
   odometry_prev_ = odometry;

@@ -1,1 +1,2 @@
-service_topic: 'pose'
+map_topic: '/map/map'
+odom_topic: '/odometry/odometry'
