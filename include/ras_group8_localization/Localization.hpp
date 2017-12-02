@@ -23,7 +23,7 @@ public:
                const std::string& laser_topic,
                const std::string& child_frame_id,
                int num_particles,
-               double target_map_resolution
+               double target_map_resolution,
                double lidar_angle_offset);
   
   virtual ~Localization();
@@ -84,7 +84,6 @@ private:
   bool               map_initialized_;
   
   const double       target_map_resolution_;
-  const double       lidar_angle_offset_;
   
   ros::Timer         update_timer_;
 };

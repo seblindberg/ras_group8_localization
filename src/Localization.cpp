@@ -31,9 +31,8 @@ Localization::Localization(ros::NodeHandle& node_handle,
     : node_handle_(node_handle),
       pf_initialized_(false),
       map_initialized_(false),
-      pf_(num_particles, 0.01, 0.01, 0.02, 0.1),
-      target_map_resolution_(target_map_resolution),
-      lidar_angle_offset_(lidar_angle_offset)
+      pf_(num_particles, 0.01, 0.01, 0.05, 0.1, lidar_angle_offset),
+      target_map_resolution_(target_map_resolution)
 {
   pose_publisher_ =
     node_handle_.advertise<nav_msgs::Odometry>(pose_topic, 1, true);

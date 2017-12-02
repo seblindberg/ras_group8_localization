@@ -21,14 +21,16 @@ static inline double
   
  
 ParticleFilter::ParticleFilter(int num_particle, double v_var, double w_var,
-                               double xy_var, double theta_var, int seed)
+                               double xy_var, double theta_var,
+                               double lidar_angle_offset, int seed)
   : generator_(seed),
     distribution_v_(0.0, v_var),
     distribution_w_(0.0, w_var),
     distribution_xy_(0.0, xy_var),
     distribution_theta_(0.0, theta_var),
     particles_(&particle_store_a_),
-    particles_resampled_(&particle_store_b_)
+    particles_resampled_(&particle_store_b_),
+    lidar_angle_offset_(lidar_angle_offset)
 {
   particle_store_a_.resize(num_particle);
   particle_store_b_.resize(num_particle);
@@ -127,8 +129,8 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
   const int num_ranges   = laser_scan.ranges.size();
   const int range_step   = num_ranges / num_usable_ranges;
   const int range_first  = floor((double) rand() * range_step / RAND_MAX);
-  const double range_min = laser_scan.range_min + lidar_angle_offset_;
-  const double range_max = laser_scan.range_max + lidar_angle_offset_;
+  const double range_min = laser_scan.range_min;
+  const double range_max = laser_scan.range_max;
   const double angle_increment = laser_scan.angle_increment * range_step;
   const double x_max     = map.info.width  * map.info.resolution;
   const double y_max     = map.info.height * map.info.resolution;
@@ -156,11 +158,11 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
   }
   
   /* Check the laser data */
-  double range_offset = laser_scan.angle_min + (range_first * laser_scan.angle_increment) - angle_increment;
+  double angle_offset = laser_scan.angle_min + lidar_angle_offset_ + (range_first * laser_scan.angle_increment) - angle_increment;
   for (int j = range_first; j < num_usable_ranges; j += range_step) {
     const double r = laser_scan.ranges[j];
     
-    range_offset += angle_increment;
+    angle_offset += angle_increment;
     
     if (!std::isfinite(r) || std::isnan(r) || r < range_min || r > range_max) {
       continue;
@@ -174,7 +176,7 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
       }
       
       /* DEBUG: Reversed the angle increment direction */
-      const double range_angle = p->theta - range_offset;
+      const double range_angle = p->theta - angle_offset;
     
       /* Calculate the transform of each of the laser scan */
       const double x = p->x + r * cos(range_angle);

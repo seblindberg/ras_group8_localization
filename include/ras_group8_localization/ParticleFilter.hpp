@@ -24,7 +24,7 @@ class ParticleFilter
 {
 public:
   ParticleFilter(int num_particle, double v_var, double w_var, double xy_var,
-                 double theta_var, int seed = 0);
+                 double theta_var, double lidar_angle_offset, int seed = 0);
 
   virtual ~ParticleFilter();
   
@@ -71,6 +71,8 @@ private:
   std::vector<Particle> *particles_resampled_;
   
   std::default_random_engine generator_;
+  
+  const double           lidar_angle_offset_;
   
   /* Random noise distributions */
   std::normal_distribution<double> distribution_v_;

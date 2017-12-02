@@ -6,6 +6,6 @@ frame_id: base_link
 initial_position:
   x: 2.2
   y: 1.25
-  theta: -0.5
+  theta: 3.2415926536
 # Quick fix for correcting the non-central orientation of the lidar
-lidar_angle_offset: 3.141592
+lidar_angle_offset: 3.2415926536
