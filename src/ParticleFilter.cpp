@@ -39,7 +39,7 @@ ParticleFilter::~ParticleFilter()
 }
 
 void
-ParticleFilter::initialize(nav_msgs::OccupancyGrid &grid)
+ParticleFilter::initialize(const nav_msgs::OccupancyGrid &grid)
 {
   const int num_particles = particles_->size();
   
@@ -123,45 +123,82 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
                       const sensor_msgs::LaserScan &laser_scan)
 {
   const int num_particles = particles_->size();
+  const int num_usable_ranges = 50; /* We want to use about 50 range measurements */
   const int num_ranges   = laser_scan.ranges.size();
+  const int range_step   = num_ranges / num_usable_ranges;
+  const int range_first  = floor((double) rand() * range_step / RAND_MAX);
   const double range_min = laser_scan.range_min;
   const double range_max = laser_scan.range_max;
-  const double angle_increment = laser_scan.angle_increment;
+  const double angle_increment = laser_scan.angle_increment * range_step;
+  const double x_max     = map.info.width  * map.info.resolution;
+  const double y_max     = map.info.height * map.info.resolution;
   double total_likelihood = 0.0;
   
+  ROS_INFO("range_step = %i", range_step);
+  ROS_INFO("range_first = %i", range_first);
+  ROS_INFO("angle_increment = %f", angle_increment);
+  ROS_INFO("x_max = %f", x_max);
+  ROS_INFO("y_max = %f", y_max);
+  
+  /* Do a first pass an remove infeasible particles */
   for (int i = 0; i < num_particles; i ++) {
     Particle *p = &(*particles_)[i];
-    double range_angle = p->theta + laser_scan.angle_min;
-    double l = 0.0; /* Particle likelihood */
     
     /* Check if we are in an occupied cell */
     if (gridLikelihood(map, p->x, p->y) > 50) {
       // ROS_INFO("(%f, %f): Inside wall", p->x, p->y);
+      p->w = -1;
+    } else if (p->x < 0 || p->y < 0 || p->x > x_max || p->y > y_max) {
+      p->w = -2;
     } else {
-    
-      /* Check the laser data */
-      for (int j = 0; j < num_ranges; j ++) {
-        const double r = laser_scan.ranges[j];
-        /* Calculate the transform of each of the laser scan */
-        const double x = p->x + r * cos(range_angle);
-        const double y = p->y + r * sin(range_angle);
-        
-        /* Fetch the probability value from the map */
-        l += gridLikelihood(map, x, y);
-        
-        range_angle += angle_increment;
-      }
+      p->w = 0;
     }
-    
-    /* Assign the particle likelihood as the weight */
-    p->w = l;
-    total_likelihood += l;
   }
   
-  /* Normalize particles */
-  const double w_factor = RAND_MAX / total_likelihood;
-  for (int i = 0; i < num_particles; i ++) {
-    (*particles_)[i].w *= w_factor;
+  /* Check the laser data */
+  double range_offset = laser_scan.angle_min + (range_first * laser_scan.angle_increment) - angle_increment;
+  for (int j = range_first; j < num_usable_ranges; j += range_step) {
+    const double r = laser_scan.ranges[j];
+    
+    range_offset += angle_increment;
+    
+    if (!std::isfinite(r) || std::isnan(r) || r < range_min || r > range_max) {
+      continue;
+    }
+    
+    for (int i = 0; i < num_particles; i ++) {
+      Particle *p = &(*particles_)[i];
+      /* Skip 0 weight particles */
+      if (p->w < 0) {
+        continue;
+      }
+      
+      const double range_angle = p->theta + range_offset;
+    
+      /* Calculate the transform of each of the laser scan */
+      const double x = p->x + r * cos(range_angle);
+      const double y = p->y + r * sin(range_angle);
+          
+      /* Fetch the probability value from the map */
+      const double l = gridLikelihood(map, x, y);
+      p->w += l;
+      total_likelihood += l;
+    }
+  }
+  
+  ROS_INFO("total_likelihood = %f", total_likelihood);
+  
+  if (total_likelihood > 0) {
+    /* Normalize particles */
+    const double w_factor = RAND_MAX / total_likelihood;
+    for (int i = 0; i < num_particles; i ++) {
+      Particle *p = &(*particles_)[i];
+      if (p->w < 0) {
+        p->w = 0;
+      } else {
+        p->w *= w_factor;
+      }
+    }
   }
   
   return total_likelihood;
@@ -186,6 +223,24 @@ ParticleFilter::normalizeParticles()
   }
 }
 
+void
+ParticleFilter::addSystemNoise()
+{
+  const int num_particles = particles_->size();
+  
+  for (int i = 0; i < num_particles; i ++) {
+    Particle *p = &(*particles_resampled_)[i];
+    
+    const double x_noise     = distribution_xy_(generator_);
+    const double y_noise     = distribution_xy_(generator_);
+    const double theta_noise = distribution_theta_(generator_);
+    
+    p->x     += x_noise;
+    p->y     += y_noise;
+    p->theta += theta_noise;
+  }
+}
+
 /* Resample
  *
  * Perform systematic resampling of the particles based on their weights.
@@ -194,12 +249,21 @@ void
 ParticleFilter::resample()
 {
   const int num_particles = particles_->size();
+  
+  /* Random offset for the systematic resampling algorithm */
   const double r0 = (double) rand() / num_particles;
   const double m_scaling_factor = (double) RAND_MAX / num_particles;
+  
+  /* Uniform weight for w */
   const double w_uniform = (double) RAND_MAX / num_particles;
+  
+  /* Threshold above which we flip the heading of some
+     particles */
+  const int sign_flip_threshold = round(0.75 * RAND_MAX);
   
   /* Cumulative sum over the particle wheights */
   double cumulative_weight = (*particles_)[0].w;
+  
   /* Particle to resample from */
   int particle_i  = 0;
   
@@ -234,6 +298,11 @@ ParticleFilter::resample()
     p_dest->y     = p_src->y + y_noise;
     p_dest->theta = p_src->theta + theta_noise;
     p_dest->w     = w_uniform;
+    
+    /* Flip the sign of theta with some small probability */
+    if (unimportance == 2 && rand() > sign_flip_threshold) {
+      p_dest->theta += M_PI;
+    }
     
     // ROS_INFO("Resample %u -> %u", particle_i, m);
   }
@@ -317,6 +386,10 @@ ParticleFilter::particlePoses(geometry_msgs::PoseArray *pose_array)
   }
 }
 
+/* Estimate Pose
+ *
+ * Take the weighted average position of the particles.
+ */
 geometry_msgs::PoseWithCovariance
 ParticleFilter::estimatePose(const double p_threshold)
 {
@@ -331,13 +404,14 @@ ParticleFilter::estimatePose(const double p_threshold)
   const int num_particles  = particles_->size();
   const double w_threshold = p_threshold * ((double) RAND_MAX / num_particles);
   
-  double var_xx = 0.0;
-  double var_xy = 0.0;
-  double var_yy = 0.0;
-  double var_xtheta = 0.0;
-  double var_ytheta = 0.0;
+  /* Covariances */
+  double var_xx         = 0.0;
+  double var_xy         = 0.0;
+  double var_yy         = 0.0;
+  double var_xtheta     = 0.0;
+  double var_ytheta     = 0.0;
   double var_thetatheta = 0.0;
-  double scale_factor = 0.0;
+  double scale_factor   = 0.0;
   
   for (int i = 0; i < num_particles; i ++) {
     const Particle *p = &(*particles_)[i];

@@ -6,6 +6,8 @@
 #include <sensor_msgs/LaserScan.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <ras_group8_localization/ParticleFilter.hpp>
+#include <geometry_msgs/TransformStamped.h>
+#include <tf/transform_broadcaster.h>
 
 namespace ras_group8_localization {
   
@@ -19,6 +21,7 @@ public:
                const std::string& map_topic,
                const std::string& odom_topic,
                const std::string& laser_topic,
+               const std::string& child_frame_id,
                int num_particles,
                double target_map_resolution);
   
@@ -57,8 +60,14 @@ private:
   ros::Subscriber    odom_subscriber_;
   ros::Subscriber    laser_subscriber_;
   
+  /* Map TF Transform
+   */
+  tf::TransformBroadcaster frame_broadcaster_;
+  geometry_msgs::TransformStamped map_transform_;
+  
 #if RAS_GROUP8_LOCALIZATION_PUBLISH_STATE
   ros::Publisher     state_particles_publisher_;
+  ros::Publisher     map_publisher_;
   geometry_msgs::PoseArray particles_msg_;
 #endif
   

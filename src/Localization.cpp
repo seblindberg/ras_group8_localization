@@ -24,6 +24,7 @@ Localization::Localization(ros::NodeHandle& node_handle,
                            const std::string& map_topic,
                            const std::string& odom_topic,
                            const std::string& laser_topic,
+                           const std::string& child_frame_id,
                            int num_particles,
                            double target_map_resolution)
     : node_handle_(node_handle),
@@ -48,17 +49,40 @@ Localization::Localization(ros::NodeHandle& node_handle,
                            &Localization::laserCallback, this);
   
   /* Prepare the pose message */
-  pose_msg_.header.frame_id = "map";
+  // pose_msg_.header.frame_id = frame_id; /* Default frame id */
   pose_msg_.header.seq = 0;
+  
+  /* Prepare the map transform */
+  map_transform_.header.seq = 0;
+  map_transform_.child_frame_id  = child_frame_id;
+  //map_transform_.child_frame_id = child_frame_id;
+  map_transform_.transform.translation.z = 0.0;
                                             
 #if RAS_GROUP8_LOCALIZATION_PUBLISH_STATE
   state_particles_publisher_ =
     node_handle_.advertise<geometry_msgs::PoseArray>("particles", 1);
     
   particles_msg_.header.seq = 0;
-  //particles_msg_.header.frame_id = "map";
   particles_msg_.poses.resize(num_particles);
+  
+  map_publisher_ =
+    node_handle_.advertise<nav_msgs::OccupancyGrid>("downscaled_map", 1, true);
 #endif
+
+  /* Check if an initial position is set */
+  double x_0;
+  double y_0;
+  double theta_0;
+  
+  if (node_handle_.getParam("initial_position/x", x_0)
+   && node_handle_.getParam("initial_position/y", y_0)
+   && node_handle_.getParam("initial_position/theta", theta_0)) {
+    ROS_INFO("Initializing particle filter at (%f, %f, %f)", x_0, y_0, theta_0);
+    
+    pf_.initialize(x_0, y_0, theta_0);
+    pf_initialized_ = true;
+  }
+  
   
   ROS_INFO("Successfully launched node.");
 }
@@ -94,11 +118,26 @@ Localization::mapCallback(const nav_msgs::OccupancyGrid& map)
   } else {
     map_ = map;
   }
+  
+  /* DEBUG
+     Allow the map to spawn a random distribution of particles */
+  if (!pf_initialized_) {
+    pf_.initialize(map);
+    pf_initialized_ = true;
+  }
+  
+#if RAS_GROUP8_LOCALIZATION_PUBLISH_STATE
+  map_publisher_.publish(map_);
+#endif
     
   /* Assume the same reference frame as the map */
-  pose_msg_.header.frame_id = map.header.frame_id;
+  pose_msg_.header.frame_id      = map.header.frame_id;
+  map_transform_.header.frame_id = map.header.frame_id;
+  //map_transform_.child_frame_id  = map.header.frame_id;
+#if RAS_GROUP8_LOCALIZATION_PUBLISH_STATE
   particles_msg_.header.frame_id = map.header.frame_id;
-  
+#endif
+
   map_initialized_ = true;
 }
 
@@ -139,8 +178,26 @@ Localization::laserCallback(const sensor_msgs::LaserScan& laser_scan)
     return;
   }
   
-  /* TODO: Move the laser scan to the odometry frame */
-  pf_.weigh(map_, laser_scan);
+  ROS_INFO("Laser Update");
+  
+  int max_reinit = 10;
+  for (;;) {
+    if (pf_.weigh(map_, laser_scan) > 0) {
+      break;
+    }
+    
+    if (--max_reinit == 0) {
+      break;
+    } else if (max_reinit < 4) {
+      pf_.initialize(map_);
+    } else {
+      /* Add some system noise */
+      pf_.addSystemNoise();
+    }
+  };
+  
+  /* Add a step that reinitializes the filter */
+  
   pf_.resample();
 }
 
@@ -154,8 +211,8 @@ Localization::update(const ros::TimerEvent& timer_event)
 {
   const ros::Time now = ros::Time::now();
   
-  /* Estimate our pose using the best 90 % */
-  geometry_msgs::PoseWithCovariance pose_cov = pf_.estimatePose(0.1);
+  /* Estimate our pose */
+  geometry_msgs::PoseWithCovariance pose_cov = pf_.estimatePose(0.9);
   
   /* TODO: transform from the laser frame to the odometry frame */
   
@@ -166,10 +223,24 @@ Localization::update(const ros::TimerEvent& timer_event)
   pose_msg_.header.stamp = now;
   
   pose_publisher_.publish(pose_msg_);
+    
+  /* Publish the frame */
+  map_transform_.header.seq ++;
+  map_transform_.header.stamp = now;
+    
+  map_transform_.transform.translation.x = pose_cov.pose.position.x;
+  map_transform_.transform.translation.y = pose_cov.pose.position.y;
+  map_transform_.transform.rotation      = pose_cov.pose.orientation;
   
+  ROS_INFO("Publishing transform %s -> %s", map_transform_.header.frame_id.c_str(), map_transform_.child_frame_id.c_str());
+  frame_broadcaster_.sendTransform(map_transform_);
+  
+#if RAS_GROUP8_LOCALIZATION_PUBLISH_STATE
   publishParticles();
+#endif
 }
 
+#if RAS_GROUP8_LOCALIZATION_PUBLISH_STATE
 void
 Localization::publishParticles()
 {
@@ -180,6 +251,7 @@ Localization::publishParticles()
   
   state_particles_publisher_.publish(particles_msg_);
 }
+#endif
 
 Localization
 Localization::load(ros::NodeHandle& n)
@@ -195,13 +267,23 @@ Localization::load(ros::NodeHandle& n)
     
   const std::string laser_topic =
     n.param("laser_topic", std::string("laser"));
+    
+  const std::string child_frame_id =
+    n.param("frame_id", std::string("base_link"));
+    
+  const int num_particles =
+    n.param("num_particles", 100);
+    
+  const double target_map_resolution =
+    n.param("target_map_resolution", 0.05);
   
   Localization localization(n, pose_topic,
                                map_topic,
                                odom_topic,
                                laser_topic,
-                               100,
-                               0.1);
+                               child_frame_id,
+                               num_particles,
+                               target_map_resolution);
   
   return localization;
 }

@@ -4,5 +4,9 @@
   <node pkg="ras_group8_localization" type="ras_group8_localization" name="ras_group8_localization" output="screen">
     <rosparam command="load" file="$(find ras_group8_localization)/config/default.yaml" />
   </node>
+  
+  <node pkg="tf"
+        type="static_transform_publisher"
+        name="laser_broadcaster" args="0 0 0 0 0 0 1 base_link laser 100" />
 
 </launch>

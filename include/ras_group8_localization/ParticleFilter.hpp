@@ -29,7 +29,7 @@ public:
   virtual ~ParticleFilter();
   
   void
-    initialize(nav_msgs::OccupancyGrid& grid);
+    initialize(const nav_msgs::OccupancyGrid& grid);
     
   void
     initialize(double x, double y, double theta);
@@ -43,6 +43,9 @@ public:
   double
     weigh(const nav_msgs::OccupancyGrid& map,
           const sensor_msgs::LaserScan &laser_scan);
+  
+  void
+    addSystemNoise();
   
   void
     resample();
