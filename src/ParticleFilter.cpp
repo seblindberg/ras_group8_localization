@@ -127,8 +127,8 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
   const int num_ranges   = laser_scan.ranges.size();
   const int range_step   = num_ranges / num_usable_ranges;
   const int range_first  = floor((double) rand() * range_step / RAND_MAX);
-  const double range_min = laser_scan.range_min;
-  const double range_max = laser_scan.range_max;
+  const double range_min = laser_scan.range_min + lidar_angle_offset_;
+  const double range_max = laser_scan.range_max + lidar_angle_offset_;
   const double angle_increment = laser_scan.angle_increment * range_step;
   const double x_max     = map.info.width  * map.info.resolution;
   const double y_max     = map.info.height * map.info.resolution;
@@ -173,7 +173,8 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
         continue;
       }
       
-      const double range_angle = p->theta + range_offset;
+      /* DEBUG: Reversed the angle increment direction */
+      const double range_angle = p->theta - range_offset;
     
       /* Calculate the transform of each of the laser scan */
       const double x = p->x + r * cos(range_angle);
@@ -181,7 +182,13 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
           
       /* Fetch the probability value from the map */
       const double l = gridLikelihood(map, x, y);
-      p->w += l;
+      
+      if (l == 0) {
+        
+      } else {
+        p->w += l;
+      }
+      
       total_likelihood += l;
     }
   }
@@ -284,8 +291,8 @@ ParticleFilter::resample()
     double unimportance  = w_uniform / p_src->w;
     
     /* Cap the noise scaling factor at 2 */
-    if (unimportance > 2) {
-      unimportance = 2;
+    if (unimportance > 10) {
+      unimportance = 10;
     }
     
     /* Resample particle m from particle_i

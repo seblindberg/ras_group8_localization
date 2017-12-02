@@ -26,12 +26,14 @@ Localization::Localization(ros::NodeHandle& node_handle,
                            const std::string& laser_topic,
                            const std::string& child_frame_id,
                            int num_particles,
-                           double target_map_resolution)
+                           double target_map_resolution,
+                           double lidar_angle_offset)
     : node_handle_(node_handle),
       pf_initialized_(false),
       map_initialized_(false),
-      pf_(num_particles, 0.1, 0.1, 0.1, 0.1),
-      target_map_resolution_(target_map_resolution)
+      pf_(num_particles, 0.01, 0.01, 0.02, 0.1),
+      target_map_resolution_(target_map_resolution),
+      lidar_angle_offset_(lidar_angle_offset)
 {
   pose_publisher_ =
     node_handle_.advertise<nav_msgs::Odometry>(pose_topic, 1, true);
@@ -276,6 +278,9 @@ Localization::load(ros::NodeHandle& n)
     
   const double target_map_resolution =
     n.param("target_map_resolution", 0.05);
+    
+  const double lidar_angle_offset =
+    n.param("lidar_angle_offset", 0);
   
   Localization localization(n, pose_topic,
                                map_topic,
@@ -283,7 +288,8 @@ Localization::load(ros::NodeHandle& n)
                                laser_topic,
                                child_frame_id,
                                num_particles,
-                               target_map_resolution);
+                               target_map_resolution,
+                               lidar_angle_offset);
   
   return localization;
 }

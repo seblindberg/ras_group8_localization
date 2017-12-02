@@ -1,9 +1,11 @@
 map_topic: '/map/map'
 odom_topic: '/odometry/odometry'
 laser_topic: '/scan'
-num_particles: 500
+num_particles: 256
 frame_id: base_link
 initial_position:
   x: 2.2
   y: 1.25
-  theta: 3.1415
+  theta: -0.5
+# Quick fix for correcting the non-central orientation of the lidar
+lidar_angle_offset: 3.141592
