@@ -78,18 +78,18 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 if (CATKIN_ENABLE_TESTING)
-  find_package(rostest REQUIRED ras_group8_util)
+  #find_package(rostest REQUIRED ras_group8_util)
   
-  add_rostest_gtest(${PROJECT_NAME}_tests
-    test/test_localization.test
-    test/test_localization.cpp
-  )
+  #add_rostest_gtest(${PROJECT_NAME}_tests
+  #  test/test_localization.test
+  #  test/test_localization.cpp
+  #)
 
-  target_link_libraries(${PROJECT_NAME}_tests
-    ras_group8_map_grid
-    ras_group8_util_bmp
-    ${catkin_LIBRARIES}
-  )
+  #target_link_libraries(${PROJECT_NAME}_tests
+  #  ras_group8_map_grid
+  #  ras_group8_util_bmp
+  #  ${catkin_LIBRARIES}
+  #)
 endif()
 
 

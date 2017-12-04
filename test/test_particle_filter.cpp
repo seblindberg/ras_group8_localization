@@ -51,7 +51,7 @@ void simulate_scan(sensor_msgs::LaserScan *scan)
 
 TEST(ParticleFilter, test_update)
 {
-  ParticleFilter pf(10, 0.1, 0.1, 0.1, 0.1);
+  ParticleFilter pf(10, 0.1, 0.1, 0.1, 0.1, 0);
   pf.initialize(0.5, 0.5, 0);
   
   pf.inspect();
@@ -77,19 +77,21 @@ TEST(ParticleFilter, test_weigh)
   sensor_msgs::LaserScan scan;
   simulate_scan(&scan);
     
-  ParticleFilter pf(100, 0.1, 0.1, 0.1, 0.1);
+  ParticleFilter pf(100, 0.1, 0.1, 0.1, 0.1, 0);
   /* Initialize uniformly on the grid */
   pf.initialize(grid);
   pf.inspect();
-  
+  ROS_INFO("-1");
   for (int i = 0; i < 100; i ++) {
     pf.weigh(grid, scan);
     pf.resample();
+    ROS_INFO("%i", i);
   }
-  
   
   pf.weigh(grid, scan);
   pf.inspect();
+  
+  ROS_INFO("100");
   
   for (int i = 0; i < 100; i ++) {
      printf("%i,", grid.data[i]);
@@ -110,7 +112,7 @@ TEST(ParticleFilter, test_estimate_pose)
   sensor_msgs::LaserScan scan;
   simulate_scan(&scan);
     
-  ParticleFilter pf(100, 0.0, 0.0, 0.1, 0.1);
+  ParticleFilter pf(100, 0.0, 0.0, 0.1, 0.1, 0);
   /* Initialize far from [0.5 0.4 0.5] */
   pf.initialize(0.8, 0.8, 2*M_PI - 0.3);
   pf.weigh(grid, scan);

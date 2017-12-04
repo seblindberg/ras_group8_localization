@@ -125,8 +125,8 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
                       const sensor_msgs::LaserScan &laser_scan)
 {
   const int num_particles = particles_->size();
-  const int num_usable_ranges = 50; /* We want to use about 50 range measurements */
   const int num_ranges   = laser_scan.ranges.size();
+  const int num_usable_ranges = std::min(50, num_ranges); /* We want to use about 50 range measurements */
   const int range_step   = num_ranges / num_usable_ranges;
   const int range_first  = floor((double) rand() * range_step / RAND_MAX);
   const double range_min = laser_scan.range_min;
@@ -160,14 +160,13 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
   
   /* Check the laser data */
   double angle_offset =
-    laser_scan.angle_min 
+    laser_scan.angle_min
       + lidar_angle_offset_
       + (range_first * laser_scan.angle_increment)
       - angle_increment;
-    
+  
   for (int j = range_first; j < num_usable_ranges; j += range_step) {
     const double r = laser_scan.ranges[j];
-    
     angle_offset += angle_increment;
     
     if (!std::isfinite(r) || std::isnan(r) || r < range_min || r > range_max) {
