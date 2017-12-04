@@ -233,7 +233,7 @@ Localization::update(const ros::TimerEvent& timer_event)
   map_transform_.transform.translation.y = pose_cov.pose.position.y;
   map_transform_.transform.rotation      = pose_cov.pose.orientation;
   
-  ROS_INFO("Publishing transform %s -> %s", map_transform_.header.frame_id.c_str(), map_transform_.child_frame_id.c_str());
+  // ROS_INFO("Publishing transform %s -> %s", map_transform_.header.frame_id.c_str(), map_transform_.child_frame_id.c_str());
   frame_broadcaster_.sendTransform(map_transform_);
   
 #if RAS_GROUP8_LOCALIZATION_PUBLISH_STATE

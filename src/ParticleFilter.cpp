@@ -136,11 +136,11 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
   const double y_max     = map.info.height * map.info.resolution;
   double total_likelihood = 0.0;
   
-  ROS_INFO("range_step = %i", range_step);
-  ROS_INFO("range_first = %i", range_first);
-  ROS_INFO("angle_increment = %f", angle_increment);
-  ROS_INFO("x_max = %f", x_max);
-  ROS_INFO("y_max = %f", y_max);
+  // ROS_INFO("range_step = %i", range_step);
+  // ROS_INFO("range_first = %i", range_first);
+  // ROS_INFO("angle_increment = %f", angle_increment);
+  // ROS_INFO("x_max = %f", x_max);
+  // ROS_INFO("y_max = %f", y_max);
   
   /* Do a first pass an remove infeasible particles */
   for (int i = 0; i < num_particles; i ++) {
@@ -151,6 +151,7 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
       // ROS_INFO("(%f, %f): Inside wall", p->x, p->y);
       p->w = -1;
     } else if (p->x < 0 || p->y < 0 || p->x > x_max || p->y > y_max) {
+      ROS_INFO("(%f, %f): Outside map", p->x, p->y);
       p->w = -2;
     } else {
       p->w = 0;
@@ -158,7 +159,12 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
   }
   
   /* Check the laser data */
-  double angle_offset = laser_scan.angle_min + lidar_angle_offset_ + (range_first * laser_scan.angle_increment) - angle_increment;
+  double angle_offset =
+    laser_scan.angle_min 
+      + lidar_angle_offset_
+      + (range_first * laser_scan.angle_increment)
+      - angle_increment;
+    
   for (int j = range_first; j < num_usable_ranges; j += range_step) {
     const double r = laser_scan.ranges[j];
     
@@ -170,7 +176,7 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
     
     for (int i = 0; i < num_particles; i ++) {
       Particle *p = &(*particles_)[i];
-      /* Skip 0 weight particles */
+      /* Skip particles market as infeasible in the last pass */
       if (p->w < 0) {
         continue;
       }
@@ -185,9 +191,7 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
       /* Fetch the probability value from the map */
       const double l = gridLikelihood(map, x, y);
       
-      if (l == 0) {
-        
-      } else {
+      if (l > 0) {
         p->w += l;
       }
       
@@ -204,7 +208,7 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
       Particle *p = &(*particles_)[i];
       if (p->w < 0) {
         p->w = 0;
-      } else {
+      } else if (p->w > 0) {
         p->w *= w_factor;
       }
     }
