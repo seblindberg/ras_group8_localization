@@ -31,7 +31,7 @@ Localization::Localization(ros::NodeHandle& node_handle,
     : node_handle_(node_handle),
       pf_initialized_(false),
       map_initialized_(false),
-      pf_(num_particles, 0.01, 0.01, 0.05, 0.1, lidar_angle_offset),
+      pf_(num_particles, 0.01, 0.02, 0.02, 0.03, lidar_angle_offset),
       target_map_resolution_(target_map_resolution)
 {
   pose_publisher_ =
@@ -156,6 +156,8 @@ Localization::odometryCallback(const nav_msgs::Odometry& odometry)
     ROS_INFO("Initialize at (%f, %f, %f)", x, y, theta);
     pf_.initialize(x, y, theta);
     pf_initialized_ = true;
+    
+    
   } else {
     const double dt =
       (odometry.header.stamp - odometry_prev_.header.stamp).toSec();
@@ -181,25 +183,37 @@ Localization::laserCallback(const sensor_msgs::LaserScan& laser_scan)
   
   ROS_INFO("Laser Update");
   
-  int max_reinit = 10;
-  for (;;) {
-    if (pf_.weigh(map_, laser_scan) > 0) {
-      break;
+  // int max_reinit = 3;
+  // for (;;) {
+  //   if (pf_.weigh(map_, laser_scan) > 0) {
+  //     break;
+  //   }
+  //
+  //   if (--max_reinit == 0) {
+  //     return; /* Give up */
+  //     //break;
+  //   } else if (max_reinit == 1) {
+  //     //pf_.initialize(map_);
+  //   } else {
+  //     /* Add some system noise */
+  //     ROS_INFO("Add noise");
+  //     pf_.addSystemNoise();
+  //   }
+  // };
+  //
+  // /* Add a step that reinitializes the filter */
+  //
+  // pf_.resample();
+  
+  int resamples = 10;
+  do {
+    if (pf_.weigh(map_, laser_scan) == 0) {
+      pf_.addSystemNoise();
+      return;
     }
     
-    if (--max_reinit == 0) {
-      break;
-    } else if (max_reinit < 4) {
-      pf_.initialize(map_);
-    } else {
-      /* Add some system noise */
-      pf_.addSystemNoise();
-    }
-  };
-  
-  /* Add a step that reinitializes the filter */
-  
-  pf_.resample();
+    pf_.resample();
+  } while (--resamples);
 }
 
 /* Update
@@ -213,15 +227,30 @@ Localization::update(const ros::TimerEvent& timer_event)
   const ros::Time now = ros::Time::now();
   
   /* Estimate our pose */
-  geometry_msgs::PoseWithCovariance pose_cov = pf_.estimatePose(0.9);
+  geometry_msgs::PoseWithCovariance pose_cov = pf_.estimatePose(0.5);
   
   /* TODO: transform from the laser frame to the odometry frame */
   
-  /* Copy the pose */
-  pose_msg_.pose = pose_cov;
+  /* Copy the pose
+     Do a sanity check on the distance between the two first */
+  
+    const double dx = pose_cov.pose.position.x - pose_msg_.pose.pose.position.x;
+    const double dy = pose_cov.pose.position.y - pose_msg_.pose.pose.position.y;
+    const double d  = sqrtf(dx*dx + dy*dy);
+    
+    if (d < 0.3) {
+      pose_msg_.pose = pose_cov;
+    }
+  
   
   pose_msg_.header.seq ++;
   pose_msg_.header.stamp = now;
+  
+  /* TODO: Find the source of this bug */
+  if (pose_msg_.pose.pose.position.x > 10
+   || pose_msg_.pose.pose.position.y > 10) {
+    return;
+  }
   
   pose_publisher_.publish(pose_msg_);
     
@@ -233,7 +262,7 @@ Localization::update(const ros::TimerEvent& timer_event)
   map_transform_.transform.translation.y = pose_cov.pose.position.y;
   map_transform_.transform.rotation      = pose_cov.pose.orientation;
   
-  // ROS_INFO("Publishing transform %s -> %s", map_transform_.header.frame_id.c_str(), map_transform_.child_frame_id.c_str());
+  ROS_INFO("Publishing transform %s -> %s", map_transform_.header.frame_id.c_str(), map_transform_.child_frame_id.c_str());
   frame_broadcaster_.sendTransform(map_transform_);
   
 #if RAS_GROUP8_LOCALIZATION_PUBLISH_STATE

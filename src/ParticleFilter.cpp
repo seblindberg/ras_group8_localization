@@ -125,15 +125,15 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
                       const sensor_msgs::LaserScan &laser_scan)
 {
   const int num_particles = particles_->size();
-  const int num_ranges   = laser_scan.ranges.size();
-  const int num_usable_ranges = std::min(50, num_ranges); /* We want to use about 50 range measurements */
-  const int range_step   = num_ranges / num_usable_ranges;
-  const int range_first  = floor((double) rand() * range_step / RAND_MAX);
-  const double range_min = laser_scan.range_min;
-  const double range_max = laser_scan.range_max;
+  const int num_ranges    = laser_scan.ranges.size();
+  const int num_usable_ranges = std::min(1000, num_ranges); /* We want to use about 50 range measurements */
+  const int range_step    = 1; //num_ranges / num_usable_ranges;
+  const int range_first   = 0; //floor((double) rand() * range_step / RAND_MAX);
+  const double range_min  = laser_scan.range_min;
+  const double range_max  = laser_scan.range_max;
   const double angle_increment = laser_scan.angle_increment * range_step;
-  const double x_max     = map.info.width  * map.info.resolution;
-  const double y_max     = map.info.height * map.info.resolution;
+  const double x_max      = map.info.width  * map.info.resolution;
+  const double y_max      = map.info.height * map.info.resolution;
   double total_likelihood = 0.0;
   
   // ROS_INFO("range_step = %i", range_step);
@@ -147,11 +147,11 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
     Particle *p = &(*particles_)[i];
     
     /* Check if we are in an occupied cell */
-    if (gridLikelihood(map, p->x, p->y) > 50) {
+    if (gridLikelihood(map, p->x, p->y) > 30) {
       // ROS_INFO("(%f, %f): Inside wall", p->x, p->y);
       p->w = -1;
     } else if (p->x < 0 || p->y < 0 || p->x > x_max || p->y > y_max) {
-      ROS_INFO("(%f, %f): Outside map", p->x, p->y);
+      // ROS_INFO("(%f, %f): Outside map", p->x, p->y);
       p->w = -2;
     } else {
       p->w = 0;
@@ -166,12 +166,14 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
       - angle_increment;
   
   for (int j = range_first; j < num_usable_ranges; j += range_step) {
-    const double r = laser_scan.ranges[j];
+    double r = laser_scan.ranges[j];
     angle_offset += angle_increment;
     
     if (!std::isfinite(r) || std::isnan(r) || r < range_min || r > range_max) {
       continue;
     }
+    
+    //r += 0.00; /* Add half a map square to the range */
     
     for (int i = 0; i < num_particles; i ++) {
       Particle *p = &(*particles_)[i];
@@ -192,9 +194,10 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
       
       if (l > 0) {
         p->w += l;
+        total_likelihood += l;
+      } else {
+        p->w -= 1.0; /* TODO: Param */
       }
-      
-      total_likelihood += l;
     }
   }
   
@@ -241,7 +244,7 @@ ParticleFilter::addSystemNoise()
   const int num_particles = particles_->size();
   
   for (int i = 0; i < num_particles; i ++) {
-    Particle *p = &(*particles_resampled_)[i];
+    Particle *p = &(*particles_)[i];
     
     const double x_noise     = distribution_xy_(generator_);
     const double y_noise     = distribution_xy_(generator_);
@@ -296,8 +299,8 @@ ParticleFilter::resample()
     double unimportance  = w_uniform / p_src->w;
     
     /* Cap the noise scaling factor at 2 */
-    if (unimportance > 10) {
-      unimportance = 10;
+    if (unimportance > 5) {
+      unimportance = 5;
     }
     
     /* Resample particle m from particle_i
@@ -312,7 +315,7 @@ ParticleFilter::resample()
     p_dest->w     = w_uniform;
     
     /* Flip the sign of theta with some small probability */
-    if (unimportance == 2 && rand() > sign_flip_threshold) {
+    if (unimportance > 4 && rand() > sign_flip_threshold) {
       p_dest->theta += M_PI;
     }
     
@@ -374,7 +377,7 @@ ParticleFilter::averageParticle(const double p_threshold)
 
     average.theta = atan2(average_theta_y, average_theta_x);
   }
-
+  
   return average;
 }
 
@@ -520,6 +523,7 @@ moveParticle(Particle *particle, const double v, const double w,
              const double dt)
 {
   const double dtheta = w * dt;
+
   const double dx = cos(particle->theta) * (v * dt);
   const double dy = sin(particle->theta) * (v * dt);
   
