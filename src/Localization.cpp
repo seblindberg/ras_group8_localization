@@ -156,8 +156,7 @@ Localization::odometryCallback(const nav_msgs::Odometry& odometry)
     ROS_INFO("Initialize at (%f, %f, %f)", x, y, theta);
     pf_.initialize(x, y, theta);
     pf_initialized_ = true;
-    
-    
+    pose_msg_.pose = odometry.pose;
   } else {
     const double dt =
       (odometry.header.stamp - odometry_prev_.header.stamp).toSec();
@@ -168,6 +167,20 @@ Localization::odometryCallback(const nav_msgs::Odometry& odometry)
     if (v > 0 || w > 0) {
       /* Move the particles as suggested by the odometry */
       pf_.move(v, w, dt);
+      
+      const double pose_theta = poseToHeading(pose_msg_.pose.pose);
+      
+      /* Also move the pose */
+      const double dtheta = w * dt;
+      
+      const double dx = cos(pose_theta) * (v * dt);
+      const double dy = sin(pose_theta) * (v * dt);
+      
+      pose_msg_.pose.pose.position.x += dx;
+      pose_msg_.pose.pose.position.y += dy;
+      
+      pose_msg_.pose.pose.orientation =
+        tf::createQuaternionMsgFromYaw(pose_theta + dtheta);
     }
   }
   
@@ -233,7 +246,7 @@ Localization::update(const ros::TimerEvent& timer_event)
   
   /* Copy the pose
      Do a sanity check on the distance between the two first */
-  
+  {
     const double dx = pose_cov.pose.position.x - pose_msg_.pose.pose.position.x;
     const double dy = pose_cov.pose.position.y - pose_msg_.pose.pose.position.y;
     const double d  = sqrtf(dx*dx + dy*dy);
@@ -241,7 +254,7 @@ Localization::update(const ros::TimerEvent& timer_event)
     if (d < 0.3) {
       pose_msg_.pose = pose_cov;
     }
-  
+  }
   
   pose_msg_.header.seq ++;
   pose_msg_.header.stamp = now;
