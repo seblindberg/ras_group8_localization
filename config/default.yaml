@@ -8,4 +8,4 @@ initial_position:
   y: 1.25
   theta: 1.62079
 # Quick fix for correcting the non-central orientation of the lidar
-lidar_angle_offset: 3.2415
+lidar_angle_offset: 3.1415926

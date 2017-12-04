@@ -1,4 +1,7 @@
 <launch>
+  
+  <!-- Launch the Lidar? -->
+  <include file="$(find rplidar_ros)/launch/rplidar.launch" />
 
   <!-- Launch RAS Group 8 Localization Node -->
   <node pkg="ras_group8_localization" type="ras_group8_localization" name="ras_group8_localization" output="screen">
