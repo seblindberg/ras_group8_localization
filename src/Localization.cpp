@@ -27,11 +27,15 @@ Localization::Localization(ros::NodeHandle& node_handle,
                            const std::string& child_frame_id,
                            int num_particles,
                            double target_map_resolution,
-                           double lidar_angle_offset)
+                           double lidar_angle_offset,
+                           double std_v,
+                           double std_w,
+                           double std_xy,
+                           double std_theta)
     : node_handle_(node_handle),
       pf_initialized_(false),
       map_initialized_(false),
-      pf_(num_particles, 0.01, 0.02, 0.02, 0.03, lidar_angle_offset),
+      pf_(num_particles, std_v, std_w, std_xy, std_theta, lidar_angle_offset),
       target_map_resolution_(target_map_resolution)
 {
   pose_publisher_ =
@@ -46,17 +50,16 @@ Localization::Localization(ros::NodeHandle& node_handle,
                            &Localization::odometryCallback, this);
   
   laser_subscriber_ =
-    node_handle_.subscribe(laser_topic, 10,
+    node_handle_.subscribe(laser_topic, 1,
                            &Localization::laserCallback, this);
   
   /* Prepare the pose message */
-  // pose_msg_.header.frame_id = frame_id; /* Default frame id */
   pose_msg_.header.seq = 0;
   
   /* Prepare the map transform */
   map_transform_.header.seq = 0;
   map_transform_.child_frame_id  = child_frame_id;
-  //map_transform_.child_frame_id = child_frame_id;
+  
   map_transform_.transform.translation.z = 0.0;
                                             
 #if RAS_GROUP8_LOCALIZATION_PUBLISH_STATE
@@ -82,6 +85,12 @@ Localization::Localization(ros::NodeHandle& node_handle,
     
     pf_.initialize(x_0, y_0, theta_0);
     pf_initialized_ = true;
+    
+    pose_msg_.pose.pose.position.x += x_0;
+    pose_msg_.pose.pose.position.y += y_0;
+    
+    pose_msg_.pose.pose.orientation =
+      tf::createQuaternionMsgFromYaw(theta_0);
   }
   
   
@@ -168,9 +177,8 @@ Localization::odometryCallback(const nav_msgs::Odometry& odometry)
       /* Move the particles as suggested by the odometry */
       pf_.move(v, w, dt);
       
-      const double pose_theta = poseToHeading(pose_msg_.pose.pose);
-      
       /* Also move the pose */
+      const double pose_theta = poseToHeading(pose_msg_.pose.pose);
       const double dtheta = w * dt;
       
       const double dx = cos(pose_theta) * (v * dt);
@@ -196,28 +204,7 @@ Localization::laserCallback(const sensor_msgs::LaserScan& laser_scan)
   
   ROS_INFO("Laser Update");
   
-  // int max_reinit = 3;
-  // for (;;) {
-  //   if (pf_.weigh(map_, laser_scan) > 0) {
-  //     break;
-  //   }
-  //
-  //   if (--max_reinit == 0) {
-  //     return; /* Give up */
-  //     //break;
-  //   } else if (max_reinit == 1) {
-  //     //pf_.initialize(map_);
-  //   } else {
-  //     /* Add some system noise */
-  //     ROS_INFO("Add noise");
-  //     pf_.addSystemNoise();
-  //   }
-  // };
-  //
-  // /* Add a step that reinitializes the filter */
-  //
-  // pf_.resample();
-  
+  /* TODO: Expose as a parameter */
   int resamples = 10;
   do {
     if (pf_.weigh(map_, laser_scan) == 0) {
@@ -241,9 +228,7 @@ Localization::update(const ros::TimerEvent& timer_event)
   
   /* Estimate our pose */
   geometry_msgs::PoseWithCovariance pose_cov = pf_.estimatePose(0.5);
-  
-  /* TODO: transform from the laser frame to the odometry frame */
-  
+    
   /* Copy the pose
      Do a sanity check on the distance between the two first */
   {
@@ -251,8 +236,18 @@ Localization::update(const ros::TimerEvent& timer_event)
     const double dy = pose_cov.pose.position.y - pose_msg_.pose.pose.position.y;
     const double d  = sqrtf(dx*dx + dy*dy);
     
-    if (d < 0.3) {
+    /* We have moved too far
+       TODO: Replace with EKF */
+    if (d < 0.4) {
+      ROS_INFO("Moved too far");
       pose_msg_.pose = pose_cov;
+      
+      /* Re-initialize the particle filter */
+      const double x     = pose_msg_.pose.pose.position.x;
+      const double y     = pose_msg_.pose.pose.position.y;
+      const double theta = poseToHeading(pose_msg_.pose.pose);
+      
+      pf_.initialize(x, y, theta);
     }
   }
   
@@ -274,10 +269,7 @@ Localization::update(const ros::TimerEvent& timer_event)
   map_transform_.transform.translation.x = pose_cov.pose.position.x;
   map_transform_.transform.translation.y = pose_cov.pose.position.y;
   map_transform_.transform.rotation      = pose_cov.pose.orientation;
-  
-  ROS_INFO("Publishing transform %s -> %s", map_transform_.header.frame_id.c_str(), map_transform_.child_frame_id.c_str());
-  frame_broadcaster_.sendTransform(map_transform_);
-  
+    
 #if RAS_GROUP8_LOCALIZATION_PUBLISH_STATE
   publishParticles();
 #endif
@@ -322,6 +314,11 @@ Localization::load(ros::NodeHandle& n)
     
   const double lidar_angle_offset =
     n.param("lidar_angle_offset", 0);
+    
+  const double std_v     = n.param("pf_noise/v",     0.01);
+  const double std_w     = n.param("pf_noise/w",     0.02);
+  const double std_xy    = n.param("pf_noise/xy",    0.02);
+  const double std_theta = n.param("pf_noise/theta", 0.03);
   
   Localization localization(n, pose_topic,
                                map_topic,
@@ -330,7 +327,11 @@ Localization::load(ros::NodeHandle& n)
                                child_frame_id,
                                num_particles,
                                target_map_resolution,
-                               lidar_angle_offset);
+                               lidar_angle_offset,
+                               std_v,
+                               std_w,
+                               std_xy,
+                               std_theta);
   
   return localization;
 }

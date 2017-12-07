@@ -136,12 +136,6 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
   const double y_max      = map.info.height * map.info.resolution;
   double total_likelihood = 0.0;
   
-  // ROS_INFO("range_step = %i", range_step);
-  // ROS_INFO("range_first = %i", range_first);
-  // ROS_INFO("angle_increment = %f", angle_increment);
-  // ROS_INFO("x_max = %f", x_max);
-  // ROS_INFO("y_max = %f", y_max);
-  
   /* Do a first pass an remove infeasible particles */
   for (int i = 0; i < num_particles; i ++) {
     Particle *p = &(*particles_)[i];
@@ -173,8 +167,6 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
       continue;
     }
     
-    //r += 0.00; /* Add half a map square to the range */
-    
     for (int i = 0; i < num_particles; i ++) {
       Particle *p = &(*particles_)[i];
       /* Skip particles market as infeasible in the last pass */
@@ -196,7 +188,7 @@ ParticleFilter::weigh(const nav_msgs::OccupancyGrid& map,
         p->w += l;
         total_likelihood += l;
       } else {
-        p->w -= 1.0; /* TODO: Param */
+        p->w -= 1.0; /* TODO: Expose as parameter */
       }
     }
   }
@@ -274,7 +266,7 @@ ParticleFilter::resample()
   
   /* Threshold above which we flip the heading of some
      particles */
-  const int sign_flip_threshold = round(0.75 * RAND_MAX);
+  const int sign_flip_threshold = round(0.85 * RAND_MAX);
   
   /* Cumulative sum over the particle wheights */
   double cumulative_weight = (*particles_)[0].w;
@@ -315,7 +307,7 @@ ParticleFilter::resample()
     p_dest->w     = w_uniform;
     
     /* Flip the sign of theta with some small probability */
-    if (unimportance > 4 && rand() > sign_flip_threshold) {
+    if (unimportance == 5 && rand() > sign_flip_threshold) {
       p_dest->theta += M_PI;
     }
     

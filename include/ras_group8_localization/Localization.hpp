@@ -24,7 +24,11 @@ public:
                const std::string& child_frame_id,
                int num_particles,
                double target_map_resolution,
-               double lidar_angle_offset);
+               double lidar_angle_offset,
+               double std_v,
+               double std_w,
+               double std_xy,
+               double std_theta);
   
   virtual ~Localization();
   

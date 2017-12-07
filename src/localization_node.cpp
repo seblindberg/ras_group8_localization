@@ -10,7 +10,7 @@ int main(int argc, char** argv)
 
   Localization main_object = Localization::load(node_handle);
   
-  main_object.run(5.0);
+  main_object.run(10.0);
   ros::spin();
   
   return 0;
